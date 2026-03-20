@@ -12,19 +12,31 @@ export const AppProvider = ({ children }) => {
 
   // 🔐 AUTH
   const login = async (email, password) => {
-    const res = await axios.post("/auth/login", { email, password });
-    localStorage.setItem("token", res.data.token);
-    setUser(res.data);
+    try {
+      const res = await axios.post("/auth/login", { email, password });
+      localStorage.setItem("token", res.data.token);
+      setUser(res.data);
+      return res.data;
+    } catch (error) {
+      console.error("Login failed", error);
+      throw error;
+    }
   };
 
   const register = async (name, email, password) => {
-    const res = await axios.post("/auth/register", {
-      name,
-      email,
-      password,
-    });
-    localStorage.setItem("token", res.data.token);
-    setUser(res.data);
+    try {
+      const res = await axios.post("/auth/register", {
+        name,
+        email,
+        password,
+      });
+      localStorage.setItem("token", res.data.token);
+      setUser(res.data);
+      return res.data;
+    } catch (error) {
+      console.error("Register failed", error);
+      throw error;
+    }
   };
 
   const logout = () => {
@@ -34,16 +46,20 @@ export const AppProvider = ({ children }) => {
 
   // 🎯 START INTERVIEW
   const startInterview = async (company, jd, difficulty) => {
-    const res = await axios.post("/interview/start", {
+    const jobRes = await axios.post("/job", {
       company,
-      jd,
+      description: jd,
+    });
+
+    const interviewRes = await axios.post("/interview/start", {
+      jobId: jobRes.data._id,
       difficulty,
     });
 
-    setInterviewId(res.data._id);
+    setInterviewId(interviewRes.data._id);
 
     const qRes = await axios.get(
-      `/questions?company=${company}&difficulty=${difficulty}&type=technical`
+      `/interview/questions?company=${company}&difficulty=${difficulty}&type=technical`
     );
 
     setQuestions(qRes.data);
