@@ -55,7 +55,7 @@ export const AppProvider = ({ children }) => {
   const uploadResume = async (file) => {
     const formData = new FormData();
     formData.append("file", file);
-    const res = await axios.post("/resume/", formData);
+    const res = await axios.post("/resume", formData);
     return res.data;
   };
 
