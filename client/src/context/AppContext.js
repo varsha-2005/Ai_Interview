@@ -83,11 +83,11 @@ export const AppProvider = ({ children }) => {
     });
 
     const interviewRes = await axios.post("/interview/start", {
-      jobId: jobRes.data._id,
+      job: jobRes.data.id,   // ✅ correct field
       company,
       difficulty,
       mode,
-      resumeId,
+      resume: resumeId,      // also fix this
     });
 
     setInterviewId(interviewRes.data._id);
@@ -111,7 +111,7 @@ export const AppProvider = ({ children }) => {
       }
 
       const results = await Promise.all(questionResolvers);
-      loadedQuestions = results.flatMap((r) => r.data || []);
+      loadedQuestions = results.flatMap((r) => r.data.questions || []);
     }
 
     setQuestions(loadedQuestions);
