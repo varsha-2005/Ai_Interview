@@ -4,11 +4,20 @@ import axios from "../api/axios";
 const AppContext = createContext();
 
 export const AppProvider = ({ children }) => {
-  const [user, setUser] = useState(null);
+  const [user, setUser] = useState(() => {
+    const token = localStorage.getItem('token');
+    return token ? { token } : null;
+  });
   const [questions, setQuestions] = useState([]);
-  const [currentIndex, setCurrentIndex] = useState(0);
   const [interviewId, setInterviewId] = useState(null);
   const [result, setResult] = useState(null);
+  const [interviewConfig, setInterviewConfig] = useState({
+    company: "",
+    jd: "",
+    difficulty: "easy",
+    mode: "Full interview",
+    resumeId: null,
+  });
 
   // 🔐 AUTH
   const login = async (email, password) => {
@@ -30,8 +39,7 @@ export const AppProvider = ({ children }) => {
         email,
         password,
       });
-      localStorage.setItem("token", res.data.token);
-      setUser(res.data);
+      // Do not auto-authenticate post-register; let user login explicitly.
       return res.data;
     } catch (error) {
       console.error("Register failed", error);
@@ -44,8 +52,31 @@ export const AppProvider = ({ children }) => {
     setUser(null);
   };
 
+  const uploadResume = async (file) => {
+    const formData = new FormData();
+    formData.append("file", file);
+    const res = await axios.post("/resume/", formData);
+    return res.data;
+  };
+
+  const screenResume = async (resumeId, jobDescription, company) => {
+    const res = await axios.post("/resume/screen", {
+      resumeId,
+      jobDescription,
+      company,
+    });
+    return res.data;
+  };
+
+  const getLangGraphFlow = async () => {
+    const res = await axios.get("/langgraph/flow");
+    return res.data;
+  };
+
   // 🎯 START INTERVIEW
-  const startInterview = async (company, jd, difficulty) => {
+  const startInterview = async (company, jd, difficulty, mode, resumeId) => {
+    setInterviewConfig({ company, jd, difficulty, mode, resumeId });
+
     const jobRes = await axios.post("/job", {
       company,
       description: jd,
@@ -53,30 +84,47 @@ export const AppProvider = ({ children }) => {
 
     const interviewRes = await axios.post("/interview/start", {
       jobId: jobRes.data._id,
+      company,
       difficulty,
+      mode,
+      resumeId,
     });
 
     setInterviewId(interviewRes.data._id);
 
-    const qRes = await axios.get(
-      `/interview/questions?company=${company}&difficulty=${difficulty}&type=technical`
-    );
+    let loadedQuestions = [];
+    if (mode !== "Only Aptitude") {
+      const questionResolvers = [];
+      if (mode === "Full interview" || mode === "Only Technical") {
+        questionResolvers.push(
+          axios.get(
+            `/interview/questions?company=${company}&difficulty=${difficulty}&mode=${encodeURIComponent("Technical")}&resumeText=${encodeURIComponent(jd)}&role=${encodeURIComponent("Software Engineer")}`
+          )
+        );
+      }
+      if (mode === "Full interview" || mode === "Only AI One-on-One") {
+        questionResolvers.push(
+          axios.get(
+            `/interview/questions?company=${company}&difficulty=${difficulty}&mode=${encodeURIComponent("AI One-on-One")}&resumeText=${encodeURIComponent(jd)}&role=${encodeURIComponent("Software Engineer")}`
+          )
+        );
+      }
 
-    setQuestions(qRes.data);
-    setCurrentIndex(0);
+      const results = await Promise.all(questionResolvers);
+      loadedQuestions = results.flatMap((r) => r.data || []);
+    }
+
+    setQuestions(loadedQuestions);
   };
 
   // 💬 SUBMIT ANSWER
-  const submitAnswer = async (answer) => {
-    const currentQuestion = questions[currentIndex];
-
+  const submitAnswer = async ({ questionId, question, answer }) => {
     await axios.post("/answers", {
       interviewId,
-      questionId: currentQuestion._id,
+      questionId,
+      question,
       answer,
     });
-
-    setCurrentIndex((prev) => prev + 1);
   };
 
   // 📊 GENERATE RESULT
@@ -93,12 +141,16 @@ export const AppProvider = ({ children }) => {
       value={{
         user,
         questions,
-        currentIndex,
+        interviewId,
         result,
+        interviewConfig,
 
         login,
         register,
         logout,
+        uploadResume,
+        screenResume,
+        getLangGraphFlow,
         startInterview,
         submitAnswer,
         generateResult,
